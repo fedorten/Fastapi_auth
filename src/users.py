@@ -35,5 +35,5 @@ async def remove_user(id: int, session: SessionDep):
 
 
 @router.put("/{id}", response_model=PublicUser)
-async def transform_user(id, user: UpdateUser, session: SessionDep):
+async def transform_user(id: int, user: UpdateUser, session: SessionDep):
     return update_user(id, user, session)

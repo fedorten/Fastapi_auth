@@ -29,16 +29,16 @@ def get_session():
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
-def delete_user(user_id, session: SessionDep):
+def delete_user(user_id: int, session: SessionDep):
     user = session.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="user not found")
     session.delete(user)
     session.commit()
-    return f"user {user_id} was deleted"
+    return user
 
 
-def update_user(user_id, updating_user: UpdateUser, session: SessionDep):
+def update_user(user_id: int, updating_user: UpdateUser, session: SessionDep):
     user = session.get(User, user_id)
     new_user = User(**updating_user.model_dump())
     if not user:
@@ -76,6 +76,13 @@ def get_users(session: SessionDep):
 
 def get_user_by_id(user_id: int, session: SessionDep):
     user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="user not found")
+    return user
+
+
+def get_user_by_email(email: str, session: SessionDep):
+    user = session.exec(select(User).where(User.email == email)).first()
     if not user:
         raise HTTPException(status_code=404, detail="user not found")
     return user
