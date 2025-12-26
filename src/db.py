@@ -1,10 +1,10 @@
 from sqlmodel import SQLModel, create_engine, Field, Session, select
-from fastapi import HTTPException, Depends
+from fastapi import Depends
 from typing import Annotated
 from sqlalchemy.exc import IntegrityError
 
 from src.models import CreateUser, UpdateUser
-from src.secure import get_password_hash
+
 
 db_url = "sqlite:///my_db.db"
 engine = create_engine(db_url, connect_args={"check_same_thread": False})
@@ -32,31 +32,39 @@ SessionDep = Annotated[Session, Depends(get_session)]
 def delete_user(user_id: int, session: SessionDep):
     user = session.get(User, user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="user not found")
+        return None
     session.delete(user)
     session.commit()
     return user
 
 
 def update_user(user_id: int, updating_user: UpdateUser, session: SessionDep):
-    user = session.get(User, user_id)
-    new_user = User(**updating_user.model_dump())
-    if not user:
-        raise HTTPException(status_code=404, detail="user not found")
+    from src.secure import get_password_hash
 
-    user.name, user.email, user.password = (
-        new_user.name,
-        new_user.email,
-        get_password_hash(new_user.password),
-    )
+    try:
+        user = session.get(User, user_id)
+        new_user = User(**updating_user.model_dump())
+        if not user:
+            return None
 
-    session.add(user)
-    session.commit()
-    session.refresh(user)
-    return user
+        user.name, user.email, user.password = (
+            new_user.name,
+            new_user.email,
+            get_password_hash(new_user.password),
+        )
+
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        return user
+    except IntegrityError:
+        session.rollback()
+        return None
 
 
 def creating_user(user_data: CreateUser, session: SessionDep):
+    from src.secure import get_password_hash
+
     try:
         user = User(**user_data.model_dump())
         user.password = get_password_hash(user_data.password)
@@ -66,7 +74,7 @@ def creating_user(user_data: CreateUser, session: SessionDep):
         return user
     except IntegrityError:
         session.rollback()
-        raise HTTPException(status_code=409, detail="this Email already using")
+        return None
 
 
 def get_users(session: SessionDep):
@@ -77,12 +85,12 @@ def get_users(session: SessionDep):
 def get_user_by_id(user_id: int, session: SessionDep):
     user = session.get(User, user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="user not found")
+        return None
     return user
 
 
 def get_user_by_email(email: str, session: SessionDep):
     user = session.exec(select(User).where(User.email == email)).first()
     if not user:
-        raise HTTPException(status_code=404, detail="user not found")
+        return None
     return user
